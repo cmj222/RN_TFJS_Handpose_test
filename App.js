@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, StatusBar, ActivityIndicator, TouchableOpacity, Image } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler';
 
@@ -10,99 +10,123 @@ import * as handpose from '@tensorflow-models/handpose'
 //require('@tensorflow/tfjs-backend-webgl');
 
 import { Camera, Constants } from 'expo-camera'
-import * as Permissions from 'expo-permissions';
 import { cameraWithTensors } from '@tensorflow/tfjs-react-native';
 
-const TensorCamera = cameraWithTensors(Camera);
+export default function handDetect() {
+  
 
-export default class CocoSsdScreen extends React.Component {
+  const [isTfReady, setIsTfReady] = useState(false);
+  const [isModelReady, setIsModelReady] = useState(false);
+  const [model, setModel] = useState(null);
+  const [predictions, setPredictions] = useState(false);
+  const [image, setImage] = useState(false);
+  const [cameraType, setCameraType] = useState(Camera.Constants.Type.front);  
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      isTfReady: false,
-      isModelReady: false,
-      predictions: null,
-      camera: null,
-      model: null
-    };
-  }
+  const TensorCamera = cameraWithTensors(Camera);
 
-  loadingModel = async() =>{
-    const model = await handpose.load()
-    return model
-  }
+  useEffect(() => {
+    async function go() {
+      await tf.ready();
+      setIsTfReady(true);
+      const model = await handpose.load();
+      setIsModelReady(true);
+      setModel(model);
+      tf.device_util.isMobile = () => true
+      tf.device_util.isBrowser = () => false
+    }
+    go();
+  }, []);
 
-  //텐서플로우 모델 로딩.
-  componentDidMount = async () => {
-    await tf.ready();
-    this.setState({ isTfReady: true,});
-
-    //this.model = await handpose.load(); 
-    this.setState({ isModelReady: true });
-    const model = await this.loadingModel()
-    this.setState({ isModelReady: true });
-
-    this.setState({model : model})
-  }
-
-  handleCameraStream = (images, updatePreview, gl) => {
+  handleCameraStream = (images) => {
     const loop = async () => {
       const nextImageTensor = images.next().value
+      console.log("nextImageTensor:", nextImageTensor);
 
       //
       // do something with tensor here
       //this.model = await handpose.load(); 
       if (nextImageTensor) {
-        const hand = await this.state.model.estimateHnads(nextImageTensor)
-        console.log(hand)
+        console.log("모델로 분석하기 단계 돌입")
+        const predictions = await model.estimateHands(nextImageTensor);
+        console.log("predictions:", predictions);
       }
-      requestAnimationFrame(loop);
+      //requestAnimationFrame(loop); 이건 왜 뺏을까...
     }
     loop();
   }
 
-  render(){
-    const { isTfReady, isModelReady } = this.state
-    return (
-      <View style={styles.container}>
-        <Text style={styles.text}>
-           TensorFlow.js ready? {isTfReady ? <Text>✌</Text> : ''}
-        </Text>
-        <Text style={styles.text}>
-            Handpose model ready? {isModelReady ? (<Text style={styles.text}>✌</Text>
-        ) : (
-          <ActivityIndicator size='small' />
-        )}
-        </Text>
-        
-        <TensorCamera
-         style={styles.camera}
-	       type={Constants.Type.back}
-         //type={Camera.Constants.Type.back}
+  const inputTensorWidth = 152;
+  const inputTensorHeight = 200;
+  const AUTORENDER = true;
 
-	       // Tensor related props
-	       cameraTextureHeight={1200}
-	       cameraTextureWidth={1600} 
-	       resizeHeight={120}
-          //애플은 높이>너비였는데 안드는 반대...리사이즈의 높이너비관계는 애플을 따른것인가?
-	       resizeWidth={160}
-	       resizeDepth={3}
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <Text style={styles.transparentText}>Tap to choose image go</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.text}>
+          TFJS ready? {isTfReady ? <Text>✅</Text> : <Text />}
+        </Text>
 
-	       onReady={this.handleCameraStream}
-	       autorender={true}
-	      />
+        <View style={styles.loadingModelContainer}>
+          <Text style={styles.text}>Model ready? </Text>
+          {isModelReady
+            ? <Text style={styles.text}>✅</Text>
+            : <ActivityIndicator size="small" />}
+        </View>
       </View>
-    );
-  }
+      <TouchableOpacity
+        style={styles.imageWrapper}
+      >
+        <TensorCamera
+          // Standard Camera props
+          style={styles.camera}
+          type={Camera.Constants.Type.front}
+          zoom={0}
+          // tensor related props
+          cameraTextureHeight={1200}
+          cameraTextureWidth={1600}
+          resizeHeight={inputTensorHeight}
+          resizeWidth={inputTensorWidth}
+          resizeDepth={3}
+          onReady={(images, updatePreview, gl) =>
+            handleCameraStream(images)}
+          autorender={AUTORENDER}
+        />
+        {/* <Text style={styles.transparentText}>Tap to choose image</Text> */}
+      </TouchableOpacity>
+      <View style={styles.predictionWrapper} />
+      <View style={styles.footer}>
+        <Text style={styles.poweredBy}>Powered by:</Text>
+        {/* <Image source={require("./assets/tfjs.jpg")} style={styles.tfLogo} /> */}
+      </View>
+    </View>
+  );
 }
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#171f24",
+    alignItems: "center"
+  },
+  loadingContainer: {
+    marginTop: 80,
+    justifyContent: "center"
+  },
+  text: {
+    color: "#ffffff",
+    fontSize: 16
+  },
+  cameraContainer: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#fff"
   },
   camera: {
     position: "absolute",
@@ -114,5 +138,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "black",
     borderRadius: 0
+  },
+  loadingModelContainer: {
+    flexDirection: "row",
+    marginTop: 10
+  },
+  imageWrapper: {
+    width: 280,
+    height: 280,
+    padding: 10,
+    borderColor: "#cf667f",
+    borderWidth: 5,
+    borderStyle: "dashed",
+    marginTop: 40,
+    marginBottom: 10,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  imageContainer: {
+    width: 250,
+    height: 250,
+    position: "absolute",
+    top: 10,
+    left: 10,
+    bottom: 10,
+    right: 10
+  },
+  predictionWrapper: {
+    height: 100,
+    width: "100%",
+    flexDirection: "column",
+    alignItems: "center"
+  },
+  transparentText: {
+    color: "#ffffff",
+    opacity: 0.7
+  },
+  footer: {
+    marginTop: 40
+  },
+  poweredBy: {
+    fontSize: 20,
+    color: "#e69e34",
+    marginBottom: 6
+  },
+  tfLogo: {
+    width: 125,
+    height: 70
   }
 });
