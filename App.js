@@ -9,6 +9,7 @@ import * as handpose from '@tensorflow-models/handpose'
 
 //require('@tensorflow/tfjs-backend-webgl');
 
+//import { Camera, Constants } from 'expo-camera'
 import { Camera, Constants } from 'expo-camera'
 import { cameraWithTensors } from '@tensorflow/tfjs-react-native';
 
@@ -20,7 +21,8 @@ export default function handDetect() {
   const [model, setModel] = useState(null);
   const [predictions, setPredictions] = useState(false);
   const [image, setImage] = useState(false);
-  const [cameraType, setCameraType] = useState(Camera.Constants.Type.front);  
+  const [type, setType] = useState(Camera.Constants.Type.back);
+  const [hasPermission, setHasPermission] = useState(null);
 
   const TensorCamera = cameraWithTensors(Camera);
 
@@ -31,6 +33,8 @@ export default function handDetect() {
       const model = await handpose.load();
       setIsModelReady(true);
       setModel(model);
+      const { status } = await Camera.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
       tf.device_util.isMobile = () => true
       tf.device_util.isBrowser = () => false
     }
@@ -40,17 +44,20 @@ export default function handDetect() {
   handleCameraStream = (images) => {
     const loop = async () => {
       const nextImageTensor = images.next().value
-      console.log("nextImageTensor:", nextImageTensor);
+      //console.log("nextImageTensor:", nextImageTensor);
 
       //
       // do something with tensor here
       //this.model = await handpose.load(); 
       if (nextImageTensor) {
-        console.log("모델로 분석하기 단계 돌입")
+        //console.log("모델로 분석하기 단계 돌입")
         const predictions = await model.estimateHands(nextImageTensor);
-        console.log("predictions:", predictions);
+        //console.log("작업물 가지고 작업하기 돌입")
+        if (predictions.length>0){
+          console.log("predictions:", predictions);
+        }
       }
-      //requestAnimationFrame(loop); 이건 왜 뺏을까...
+      requestAnimationFrame(loop); 
     }
     loop();
   }
@@ -60,28 +67,24 @@ export default function handDetect() {
   const AUTORENDER = true;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <Text style={styles.transparentText}>Tap to choose image go</Text>
+    <View>
+      {/* <StatusBar barStyle="light-content" />
       <View style={styles.loadingContainer}>
         <Text style={styles.text}>
           TFJS ready? {isTfReady ? <Text>✅</Text> : <Text />}
         </Text>
-
         <View style={styles.loadingModelContainer}>
           <Text style={styles.text}>Model ready? </Text>
           {isModelReady
             ? <Text style={styles.text}>✅</Text>
             : <ActivityIndicator size="small" />}
         </View>
-      </View>
-      <TouchableOpacity
-        style={styles.imageWrapper}
-      >
-        <TensorCamera
+      </View> */}
+        <Camera style={styles.cameraExamp} type={type}/>
+        {/* <TensorCamera
           // Standard Camera props
           style={styles.camera}
-          type={Camera.Constants.Type.front}
+          type={Constants.Type.front}
           zoom={0}
           // tensor related props
           cameraTextureHeight={1200}
@@ -92,14 +95,9 @@ export default function handDetect() {
           onReady={(images, updatePreview, gl) =>
             handleCameraStream(images)}
           autorender={AUTORENDER}
-        />
+        /> */}
         {/* <Text style={styles.transparentText}>Tap to choose image</Text> */}
-      </TouchableOpacity>
-      <View style={styles.predictionWrapper} />
-      <View style={styles.footer}>
-        <Text style={styles.poweredBy}>Powered by:</Text>
-        {/* <Image source={require("./assets/tfjs.jpg")} style={styles.tfLogo} /> */}
-      </View>
+
     </View>
   );
 }
@@ -108,8 +106,11 @@ export default function handDetect() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#171f24",
+    backgroundColor: "grey",
     alignItems: "center"
+  },
+  cameraExamp: {
+    flex: 1,
   },
   loadingContainer: {
     marginTop: 80,
